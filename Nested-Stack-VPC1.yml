@@ -458,6 +458,80 @@ Resources:
             git clone https://github.com/sentialabs/geneve-proxy.git
             mv geneve-proxy /root/
 
+  # Security Group for Application Server
+  VPC1SecurtiyGroup4:
+    Type: 'AWS::EC2::SecurityGroup'
+    DependsOn: VPC1PrivateSubnet1CIDR
+    Properties:
+      GroupName: WebAppServer
+      GroupDescription: WebAppServer
+      VpcId: !Ref VPC1
+      SecurityGroupIngress:
+        - IpProtocol: tcp 
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: !Ref VPC1CIDR
+          Description: Allow 80 from VPC
+        - IpProtocol: tcp 
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref VPC1CIDR
+          Description: Allow 22 from VPC
+        - IpProtocol: icmp # allow ping from anywhere
+          FromPort: '8'
+          ToPort: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: Allow Ping from anywhere
+      Tags:
+        - Key: Name
+          Value:  WebAppServer
+
+  # Application Server 
+  VPC1VM4:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: VPC1SecurtiyGroup4
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref Arm64AmiId
+      InstanceType: !Ref ApplicationServerInstanceType
+      IamInstanceProfile: !Ref SSMIAMRole
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      SubnetId: !Ref VPC1PrivateSubnet1
+      Monitoring: true
+      BlockDeviceMappings: # Use gp3 as root disk @2021-01-31
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 10
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref VPC1SecurtiyGroup4
+      Tags:
+        - Key: Name
+          Value: VPC1-WebApp1
+  VPC1VM5:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: VPC1SecurtiyGroup4
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref Arm64AmiId
+      InstanceType: !Ref ApplicationServerInstanceType
+      IamInstanceProfile: !Ref SSMIAMRole
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      SubnetId: !Ref VPC1PrivateSubnet2
+      Monitoring: true
+      BlockDeviceMappings: # Use gp3 as root disk @2021-01-31
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 10
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref VPC1SecurtiyGroup4
+      Tags:
+        - Key: Name
+          Value: VPC1-WebApp2
+
   # -------------------------- GWLB -----------------------
   GWLB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -576,9 +650,15 @@ Outputs:
       Value: !GetAtt VPC1VM1.PrivateIp
     VPC1JumpServerSecurityGroup:
       Value: !Ref VPC1SecurtiyGroup1
+    # GWLB
     VPC1EndpointService:
       Value: !Ref GWLBVpcEndpointService
     GwlbVpcEndpoint1:
       Value: !Ref GwlbVpcEndpoint1
     GwlbVpcEndpoint2:
       Value: !Ref GwlbVpcEndpoint2
+    # WebApp Server
+    VPC1WebApp1PrivateIP: 
+      Value: !GetAtt VPC1VM4.PrivateIp
+    VPC1WebApp2PrivateIP: 
+      Value: !GetAtt VPC1VM5.PrivateIp

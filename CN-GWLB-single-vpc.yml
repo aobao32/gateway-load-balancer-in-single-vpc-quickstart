@@ -111,6 +111,31 @@ Resources:
         - Key: Name
           Value: AccessVPC
 
+  # Add GWLB related route
+  RouteTable01Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VPC01Stack
+    Properties:
+      Parameters:
+        # CIDR
+        VPC1CIDR: !Ref VPC1CIDR
+        VPC1PrivateSubnet1CIDR: !Ref VPC1PrivateSubnet1CIDR
+        VPC1PrivateSubnet2CIDR: !Ref VPC1PrivateSubnet2CIDR
+        # VPC 1 route table
+        VPC1NATSubnet1RouteTable: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet1RouteTable
+        VPC1NATSubnet2RouteTable: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet2RouteTable
+        VPC1ApplianceSubnet1RouteTable: !GetAtt VPC01Stack.Outputs.VPC1ApplianceSubnet1RouteTable
+        VPC1ApplianceSubnet2RouteTable: !GetAtt VPC01Stack.Outputs.VPC1ApplianceSubnet2RouteTable
+        VPC1PrivateSubnet1RouteTable: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet1RouteTable
+        VPC1PrivateSubnet2RouteTable: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet2RouteTable
+        # GWLBe in VPC1
+        GwlbVpcEndpoint1: !GetAtt VPC01Stack.Outputs.GwlbVpcEndpoint1
+        GwlbVpcEndpoint2: !GetAtt VPC01Stack.Outputs.GwlbVpcEndpoint2
+      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/V2/Nested-Stack-RouteTable.yml
+      TimeoutInMinutes: 6
+      Tags:
+        - Key: Name
+
 Outputs: 
     JumpServerPublicIP: # 堡垒机EIP,拼接登录字符串
       Description: JumpServer EIP in AccessVPC NATSubnet, single entry point for login
@@ -118,3 +143,9 @@ Outputs:
     LinuxAMI:
       Description: Latest ARM64 AMI ID used in tempalte
       Value: !Ref Arm64AmiId
+    VPC1WebApp1PrivateIP: # 堡垒机EIP,拼接登录字符串
+      Description: VPC1 WebApp1 Private IP
+      Value: !GetAtt VPC01Stack.Outputs.VPC1WebApp1PrivateIP
+    VPC1WebApp2PrivateIP: # 堡垒机EIP,拼接登录字符串
+      Description: VPC1 WebApp2 Private IP
+      Value: !GetAtt VPC01Stack.Outputs.VPC1WebApp2PrivateIP
