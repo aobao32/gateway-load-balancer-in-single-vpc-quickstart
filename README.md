@@ -14,7 +14,9 @@ GWLB in single VPC Quickstart CloudFormation Template
 - ELB：本架构中所有外部进入流量的统一入口
 - VPC1：单个VPC运行所有组件
 
-总体架构图：（待更新）
+总体架构图和路由表说明如下。
+
+![总体架构图和路由表说明](https://d51vuyprlknbq.cloudfront.net/GWLB/GWLB-in-single-VPC-Quickstart.png)
 
 ## 二、启动模版使用说明
 
