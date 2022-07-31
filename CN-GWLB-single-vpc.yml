@@ -1,50 +1,7 @@
 Description: GWLB POC
 
 Parameters:
-  # Input for all VPCs
-  EC2KEY:
-    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
-    Type: 'AWS::EC2::KeyPair::KeyName'
-    ConstraintDescription: must be the name of an existing EC2 KeyPair.
-  Arm64AmiId:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Description: This SSM parameter will have latest AMI image, just keep default and DO NOT modify it.
-    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2'
-  ApplicationServerInstanceType:
-    Description: Choose instance type for application server in private subnet 
-    Type: String
-    Default: t4g.micro
-    AllowedValues:
-      - t4g.micro
-      - t4g.small
-      - c6g.medium
-    ConstraintDescription: must be a valid EC2 instance type.
-  # Input for VPC1
-  WindowsAmiId:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Description: This SSM parameter will have latest AMI image, just keep default and DO NOT modify it.
-    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base'
-  VirtualApplianceServerInstanceType:
-    Description: Choose instance type for virtual appliance server.
-    Type: String
-    Default: t4g.small
-    AllowedValues:
-      - t4g.micro
-      - t4g.small
-      - c6g.medium
-    ConstraintDescription: must be a valid EC2 instance type.
-  JumpServerInstanceType:
-    Description: Choose instance type for jumpserver
-    Type: String
-    Default: t3.large
-    AllowedValues:
-      - t3.large
-      - t3.xlarge
-    ConstraintDescription: must be a valid EC2 instance type.
-  JumpServerAllowList:
-    Description: Please enter the CIDR that allows to connect to JumpServer
-    Type: String
-    Default: 52.82.200.0/24
+  # VPC1Stack
   VPC1CIDR:
     Description: Please enter the IP range (CIDR notation) for this VPC
     Type: String
@@ -73,31 +30,65 @@ Parameters:
     Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
     Type: String
     Default: 10.1.202.0/24
+  # JumpServerStack
+  EC2KEY:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  WindowsAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Description: This SSM parameter will have latest AMI image, just keep default and DO NOT modify it.
+    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base'
+  JumpServerInstanceType:
+    Description: Choose instance type for jumpserver
+    Type: String
+    Default: t3.large
+    AllowedValues:
+      - t3.large
+      - t3.xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  JumpServerAllowList:
+    Description: Please enter the CIDR that allows to connect to JumpServer
+    Type: String
+    Default: 54.222.61.0/24
+  # Virtual Appliance
+  VirtualApplianceServerInstanceType:
+    Description: Choose instance type for virtual appliance server.
+    Type: String
+    Default: t4g.small
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+    ConstraintDescription: must be a valid EC2 instance type.
+  Arm64AmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Description: This SSM parameter will have latest AMI image, just keep default and DO NOT modify it.
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2'
+  # WebApp Server
+  ApplicationServerInstanceType:
+    Description: Choose instance type for application server in private subnet 
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+    ConstraintDescription: must be a valid EC2 instance type.
 
 Resources:
-  # SSM Role
   SSMStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn/Nested-SSMRole.yml
+      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn-v2/Nested-SSMRole.yml
       TimeoutInMinutes: 5
       Tags:
         - Key: Name
           Value: SSMRole
 
-  # Access VPC (VPC1)
   VPC01Stack:
     Type: AWS::CloudFormation::Stack
     DependsOn: SSMStack
     Properties:
       Parameters:
-        SSMIAMRole: !GetAtt SSMStack.Outputs.SSMRole
-        EC2KEY: !Ref EC2KEY
-        Arm64AmiId: !Ref Arm64AmiId
-        WindowsAmiId: !Ref WindowsAmiId
-        JumpServerInstanceType: !Ref JumpServerInstanceType
-        VirtualApplianceServerInstanceType: !Ref VirtualApplianceServerInstanceType
-        JumpServerAllowList: !Ref JumpServerAllowList
         VPC1CIDR: !Ref VPC1CIDR
         VPC1NATSubnet1CIDR: !Ref VPC1NATSubnet1CIDR
         VPC1NATSubnet2CIDR: !Ref VPC1NATSubnet2CIDR
@@ -105,47 +96,125 @@ Resources:
         VPC1ApplianceSubnet2CIDR: !Ref VPC1ApplianceSubnet2CIDR
         VPC1PrivateSubnet1CIDR: !Ref VPC1PrivateSubnet1CIDR
         VPC1PrivateSubnet2CIDR: !Ref VPC1PrivateSubnet2CIDR
-      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn/Nested-Stack-VPC1.yml
-      TimeoutInMinutes: 15
+      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn-v2/Nested-Stack-VPC1.yml
+      TimeoutInMinutes: 5
       Tags:
         - Key: Name
-          Value: AccessVPC
+          Value: GWLB-VPC
 
-  # Add GWLB related route
-  RouteTable01Stack:
+  JumpServerStack:
     Type: AWS::CloudFormation::Stack
     DependsOn: VPC01Stack
     Properties:
       Parameters:
-        # CIDR
-        VPC1CIDR: !Ref VPC1CIDR
-        VPC1PrivateSubnet1CIDR: !Ref VPC1PrivateSubnet1CIDR
-        VPC1PrivateSubnet2CIDR: !Ref VPC1PrivateSubnet2CIDR
-        # VPC 1 route table
-        VPC1NATSubnet1RouteTable: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet1RouteTable
-        VPC1NATSubnet2RouteTable: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet2RouteTable
-        VPC1ApplianceSubnet1RouteTable: !GetAtt VPC01Stack.Outputs.VPC1ApplianceSubnet1RouteTable
-        VPC1ApplianceSubnet2RouteTable: !GetAtt VPC01Stack.Outputs.VPC1ApplianceSubnet2RouteTable
-        VPC1PrivateSubnet1RouteTable: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet1RouteTable
-        VPC1PrivateSubnet2RouteTable: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet2RouteTable
-        # GWLBe in VPC1
-        GwlbVpcEndpoint1: !GetAtt VPC01Stack.Outputs.GwlbVpcEndpoint1
-        GwlbVpcEndpoint2: !GetAtt VPC01Stack.Outputs.GwlbVpcEndpoint2
-      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/V2/Nested-Stack-RouteTable.yml
-      TimeoutInMinutes: 6
+        SSMIAMRole: !GetAtt SSMStack.Outputs.SSMRole
+        EC2KEY: !Ref EC2KEY
+        WindowsAmiId: !Ref WindowsAmiId
+        JumpServerInstanceType: !Ref JumpServerInstanceType
+        JumpServerAllowList: !Ref JumpServerAllowList
+        VPC1: !GetAtt VPC01Stack.Outputs.VPC1
+        VPC1NATSubnet1: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet1
+      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn-v2/Nested-Stack-JumpServer.yml
+      TimeoutInMinutes: 5
       Tags:
         - Key: Name
+          Value: JumpServer
+
+  GWLBVirtualAppliance:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: JumpServerStack
+    Properties:
+      Parameters:
+        SSMIAMRole: !GetAtt SSMStack.Outputs.SSMRole
+        EC2KEY: !Ref EC2KEY
+        Arm64AmiId: !Ref Arm64AmiId
+        VirtualApplianceServerInstanceType: !Ref VirtualApplianceServerInstanceType
+        VPC1: !GetAtt VPC01Stack.Outputs.VPC1
+        VPC1CIDR: !Ref VPC1CIDR
+        VPC1ApplianceSubnet1: !GetAtt VPC01Stack.Outputs.VPC1ApplianceSubnet1
+        VPC1ApplianceSubnet2: !GetAtt VPC01Stack.Outputs.VPC1ApplianceSubnet2
+      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn-v2/Nested-Stack-GWLBVirtualAppliance.yml
+      TimeoutInMinutes: 9
+      Tags:
+        - Key: Name
+          Value: GWLBVirtualAppliance
+
+  RouteTable01Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: GWLBVirtualAppliance
+    Properties:
+      Parameters:
+        VPC1CIDR: !Ref VPC1CIDR
+        VPC1NATSubnet1RouteTable: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet1RouteTable
+        VPC1NATSubnet2RouteTable: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet2RouteTable
+        VPC1PrivateSubnet1RouteTable: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet1RouteTable
+        VPC1PrivateSubnet2RouteTable: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet2RouteTable
+        GwlbVpcEndpoint1: !GetAtt GWLBVirtualAppliance.Outputs.GwlbVpcEndpoint1
+        GwlbVpcEndpoint2: !GetAtt GWLBVirtualAppliance.Outputs.GwlbVpcEndpoint2
+      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn-v2/Nested-Stack-RouteTable.yml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key: Name
+          Value: GWLB-Route
+
+  WebAppServerStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: RouteTable01Stack
+    Properties:
+      Parameters:
+        SSMIAMRole: !GetAtt SSMStack.Outputs.SSMRole
+        EC2KEY: !Ref EC2KEY
+        Arm64AmiId: !Ref Arm64AmiId
+        ApplicationServerInstanceType: !Ref ApplicationServerInstanceType
+        VPC1CIDR: !Ref VPC1CIDR
+        VPC1: !GetAtt VPC01Stack.Outputs.VPC1
+        VPC1PrivateSubnet1: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet1
+        VPC1PrivateSubnet2: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet2
+      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn-v2/Nested-Stack-WebAppServer.yml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key: Name
+          Value: WebAppServer
+
+  ALBStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: WebAppServerStack
+    Properties:
+      Parameters:
+        VPC1: !GetAtt VPC01Stack.Outputs.VPC1
+        VPC1CIDR: !Ref VPC1CIDR
+        VPC1NATSubnet1: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet1
+        VPC1NATSubnet2: !GetAtt VPC01Stack.Outputs.VPC1NATSubnet2
+        VPC1WebApp1PrivateIP: !GetAtt WebAppServerStack.Outputs.VPC1WebApp1PrivateIP
+        VPC1WebApp2PrivateIP: !GetAtt WebAppServerStack.Outputs.VPC1WebApp2PrivateIP
+      TemplateURL: https://my-ab-demo.s3-ap-southeast-1.amazonaws.com/GWLB/single-vpc-cn-v2/Nested-Stack-ALB.yml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key: Name
+          Value: ALB
 
 Outputs: 
-    JumpServerPublicIP: # 堡垒机EIP,拼接登录字符串
-      Description: JumpServer EIP in AccessVPC NATSubnet, single entry point for login
-      Value: !GetAtt VPC01Stack.Outputs.VPC1JumpServerEIP
+    JumpServerPublicIP:
+      Description: JumpServer EIP in NATSubnet, single entry point for login
+      Value: !GetAtt JumpServerStack.Outputs.JumpServerEIP
     LinuxAMI:
       Description: Latest ARM64 AMI ID used in tempalte
       Value: !Ref Arm64AmiId
-    VPC1WebApp1PrivateIP: # 堡垒机EIP,拼接登录字符串
-      Description: VPC1 WebApp1 Private IP
-      Value: !GetAtt VPC01Stack.Outputs.VPC1WebApp1PrivateIP
-    VPC1WebApp2PrivateIP: # 堡垒机EIP,拼接登录字符串
-      Description: VPC1 WebApp2 Private IP
-      Value: !GetAtt VPC01Stack.Outputs.VPC1WebApp2PrivateIP
+    WindowsAMI:
+      Description: Latest ARM64 AMI ID used in tempalte
+      Value: !Ref WindowsAmiId
+    VPC1WebApp1PrivateIP: 
+      Description: VPC1 WebApp 1 Private IP
+      Value: !GetAtt WebAppServerStack.Outputs.VPC1WebApp1PrivateIP
+    VPC1WebApp2PrivateIP: 
+      Description: VPC1 WebApp 2 Private IP
+      Value: !GetAtt WebAppServerStack.Outputs.VPC1WebApp2PrivateIP
+    VirtualAppliance1PrivateIP: 
+      Description: Virtual Appliance 1 Private IP
+      Value: !GetAtt GWLBVirtualAppliance.Outputs.VirtualAppliance1PrivateIP
+    VirtualAppliance2PrivateIP: 
+      Description: Virtual Appliance 1 Private IP
+      Value: !GetAtt GWLBVirtualAppliance.Outputs.VirtualAppliance2PrivateIP
+    ALBEndpoint:
+      Description: ALB Public Endpoint
+      Value: !GetAtt ALBStack.Outputs.ALBEndpoint

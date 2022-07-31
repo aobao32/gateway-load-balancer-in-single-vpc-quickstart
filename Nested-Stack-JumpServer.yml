@@ -1,0 +1,102 @@
+Description:  JumpServer
+
+Parameters:
+  SSMIAMRole:
+    Description: SSM IAM Role passed from ssm stack 
+    Type: String
+  EC2KEY:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  WindowsAmiId: 
+    Type: String
+  JumpServerInstanceType:
+    Description: Choose instance type for jumpserver
+    Type: String
+    Default: t3.large
+    AllowedValues:
+      - t3.large
+      - t3.xlarge
+  JumpServerAllowList:
+    Description: Please enter the CIDR that allows to connect to JumpServer
+    Type: String
+    Default: 52.82.200.0/24
+  VPC1:
+    Type: String
+  VPC1NATSubnet1:
+    Type: String
+
+Resources:
+  # EIP for JumpServer
+  VPC1EIP3:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: GWLB-VPC-JumpServer
+
+  # Security Group for Jump Server
+  VPC1SecurtiyGroup1:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: GWLB-VPC-JumpServer
+      GroupDescription: GWLB-VPC-JumpServer
+      VpcId: !Ref VPC1
+      SecurityGroupIngress:
+        - IpProtocol: tcp # Allow SSH from JumpServer SecurityGroupID in VPC1
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: !Ref JumpServerAllowList
+          Description: Allow RDP from MyIP, please update it after creation
+      Tags:
+        - Key: Name
+          Value: GWLB-VPC-JumpServer
+
+  # Jump Server
+  VPC1VM1:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref WindowsAmiId
+      InstanceType: !Ref JumpServerInstanceType
+      IamInstanceProfile: !Ref SSMIAMRole
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      SubnetId: !Ref VPC1NATSubnet1
+      Monitoring: true
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 60
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref VPC1SecurtiyGroup1
+      Tags:
+        - Key: Name
+          Value: GWLB-VPC-JumpServer
+      UserData:
+        Fn::Base64: 
+          !Sub |
+            <powershell>
+            Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+            choco install putty -y
+            choco install vim -y
+            choco install noteadplusplus -y
+            choco install 7zip -y
+            choco install python3 -y
+            choco install grep -y
+            </powershell>
+
+  # JumpServer EIP
+  VPC1EIP3assignment:
+    Type: AWS::EC2::EIPAssociation
+    DependsOn: VPC1VM1
+    Properties:
+      InstanceId: !Ref VPC1VM1
+      EIP: !Ref VPC1EIP3
+
+Outputs:
+    # Jump Server
+    JumpServerEIP: # 堡垒机公网IP
+      Value: !Ref VPC1EIP3
