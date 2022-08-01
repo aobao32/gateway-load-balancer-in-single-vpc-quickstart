@@ -4,7 +4,9 @@ GWLB in single VPC Quickstart CloudFormation Template
 
 ## 一、架构说明
 
-本方案构建一个单VPC的网络检测方案，可参考[之前多VPC的GWLB方案](https://github.com/aobao32/gateway-load-balacer-centralized-solution-quickstart)。
+关于AWS GWLB，之前构建过一个[结合Transit Gateway的多VPC的GWLB方案](https://github.com/aobao32/gateway-load-balacer-centralized-solution-quickstart)。本次构建的quickstart则是一个更简化的单VPC方案，以满足特定场景下的要求。注意是特定场景下的需求，如果是全新设计，建议按照GWLB最佳实践的架构进行组网。
+
+本方案构建一个单VPC的网络检测方案，可参考[之前多VPC的GWLB方案]。
 
 主要组件如下：
 
@@ -27,7 +29,7 @@ GWLB in single VPC Quickstart CloudFormation Template
 
 - 本账号的EIP Limit大于5，新的NAT Gateway和堡垒机都将绑定EIP
 - 中国区已经通过了ICP备案，可以测试从外网互联网发起的对ELB的80端口发起访问
-- 本模版里边的IAM Role是按照AWS中国区编写的，如果在Global启动，请将模版`Nested-SSMRole.yml`其中的`aws-cn`替换为`aws`即可在Global区域使用。
+- 本模版里边的IAM Role是按照AWS中国区编写的，如果在Global启动，请将模版`Nested-SSMRole.yml`其中的`aws-cn`替换为`aws`即可在Global区域使用
 
 ### 2、使用S3托管所有CloudFormation模版
 
@@ -50,7 +52,7 @@ GWLB in single VPC Quickstart CloudFormation Template
 
 ### 4、其他Post-configuration
 
-本模版已经完成了GWLB和GWLB Endpoint的创建，并修改了对应子网的路由表，以确保出向去往互联网和入站
+本模版已经完成了GWLB和GWLB Endpoint的创建，并修改了对应子网的路由表，以确保出向去往互联网和入站流量放行。由此就不需要额外做Post-configuration了，实现了开箱即用。
 
 ## 三、测试内网经过GWLB向外访问
 
@@ -81,9 +83,9 @@ GWLB in single VPC Quickstart CloudFormation Template
 
 ### 1、从控制台上无法使用Session Manager连接位于内网的WebApp虚拟机
 
-可能原因：EC2 Session Manager正常运行的前提是EC2具有正常的出向流量，这个出向流量是经过GWLB的。如果Virtual Appliance上负责模拟防火墙转发流量的Geneve Proxy失效，可能是CloudFormation脚本中从github下载代码时候超时，也可能是python程序异常退出，需要手工重启python程序；
+可能原因：EC2 Session Manager正常运行的前提是EC2具有正常的出向流量，这个出向流量是经过GWLB的。如果Virtual Appliance上负责模拟防火墙转发流量的Geneve Proxy失效，可能是CloudFormation脚本中从github下载代码时候超时，也可能是python程序异常退出，需要手工重启python程序。
 
-再重新调整的Virtual Appliance后，位于内网的EC2可能无法感知到Session Manager所需要的出向连接已经恢复。此时重启下Session Manager要连接的EC2即可正常使用Session Manager连接。
+在重新调整的Virtual Appliance后，位于内网的EC2可能无法感知到Session Manager所需要的出向连接已经恢复。此时重启下Session Manager要连接的EC2即可正常使用Session Manager连接。
 
 ### 2、从跳板机上无法连接位于内网的WebApp虚拟机
 
@@ -95,9 +97,7 @@ GWLB in single VPC Quickstart CloudFormation Template
 
 ### 4、验证 Geneve Proxy 工作正常
 
-在模版启动后，在EC2中可以看到带有标签名为`Virtual Appliance1`和`VirtualAppliance2`的两个EC2。这两个节点运行Amazon Linux 2，且已经从github上下载了geneve proxy到 `/root/geneve-proxy` 目录。
-
-本CloudFormation通过EC2的`User Data`进行了如下配置：
+在模版启动后，在EC2中可以看到带有标签名为`Virtual Appliance1`和`VirtualAppliance2`的两个EC2。这两个节点运行Amazon Linux 2。本CloudFormation通过EC2的`User Data`进行了如下配置：
 
 - 从Github上下载geneve-proxy
 - 通过/etc/rc.local随机自动启动
