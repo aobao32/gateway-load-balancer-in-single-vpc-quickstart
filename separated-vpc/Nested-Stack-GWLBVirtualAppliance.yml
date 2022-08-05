@@ -1,0 +1,251 @@
+Description:  GWLB and Virtual Appliance
+
+Parameters:
+  SSMIAMRole:
+    Description: SSM IAM Role passed from ssm stack 
+    Type: String
+  EC2KEY:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  VirtualApplianceServerInstanceType:
+    Description: Choose instance type for virtual appliance server.
+    Type: String
+    Default: t4g.small
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+    ConstraintDescription: must be a valid EC2 instance type.
+  Arm64AmiId: 
+    Type: String
+    Default: ami-004fe950390345df6
+  # for application and GWLB endpoint
+  VPC1:
+    Type: String
+  VPC1CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.1.0.0/16
+  VPC1ApplianceSubnet1:
+    Type: String
+  VPC1ApplianceSubnet2:
+    Type: String
+  # for GWLB Virtual Appliance
+  VPC2:
+    Type: String
+  VPC2CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 192.168.0.0/16
+  VPC2ApplianceSubnet1:
+    Type: String
+  VPC2ApplianceSubnet2:
+    Type: String
+
+Resources:
+  # for Virtual Appliance in VPC2
+  VPC2SecurtiyGroup1:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: GWLBVirtualAppliance
+      GroupDescription: GWLB-VirtualAppliance
+      VpcId: !Ref VPC2
+      SecurityGroupIngress:
+        - IpProtocol: tcp 
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref VPC2CIDR
+          Description: Allow 22 from GWLB-VPC - used for Virtual Appliance Configuration
+        - IpProtocol: icmp # allow ping from anywhere
+          FromPort: '8'
+          ToPort: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: Allow Ping from anywhere
+        - IpProtocol: udp
+          FromPort: 6081
+          ToPort: 6081
+          CidrIp: !Ref VPC2CIDR
+          Description: Allow Geneve UDP 6081
+      Tags:
+        - Key: Name
+          Value:  GWLB-Virtual-Appliance
+
+  # Virtual Appliance 1 in VPC2
+  VPC2VM1:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref Arm64AmiId
+      InstanceType: !Ref VirtualApplianceServerInstanceType
+      IamInstanceProfile: !Ref SSMIAMRole
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      SubnetId: !Ref VPC2ApplianceSubnet1
+      Monitoring: true
+      BlockDeviceMappings: # Use gp3 as root disk @2021-01-31
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 10
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref VPC2SecurtiyGroup1
+      Tags:
+        - Key: Name
+          Value: Virtual-Appliance-1
+      UserData:
+        Fn::Base64: 
+          !Sub |
+            #! /bin/bash
+            yum update -y
+            pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple pip -U
+            pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+            pip3 install pyyaml -i https://pypi.tuna.tsinghua.edu.cn/simple
+            yum install git -y
+            git clone https://github.com/sentialabs/geneve-proxy.git
+            mv geneve-proxy /root/
+            mv /root/geneve-proxy/config.yaml /root/geneve-proxy/config-orig.yaml
+            wget -O /root/geneve-proxy/config.yaml http://myworkshop.bitipcman.com/GWLB/GWLB-in-single-VPC-Quickstart-config.yaml
+            echo "cd /root/geneve-proxy/" >> /etc/rc.local
+            echo "nohup /bin/python3 main.py &" >> /etc/rc.local
+            chmod +x /etc/rc.local
+            reboot
+
+  # Virtual Appliance 2 in VPC2
+  VPC2VM2:
+    Type: 'AWS::EC2::Instance'
+    # Use dependency to create two EC2 one-by-one. Otherwise, git clone request may be blocked by GFW.
+    DependsOn: VPC2VM1
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref Arm64AmiId
+      InstanceType: !Ref VirtualApplianceServerInstanceType
+      IamInstanceProfile: !Ref SSMIAMRole
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      SubnetId: !Ref VPC2ApplianceSubnet2
+      Monitoring: true
+      BlockDeviceMappings: # Use gp3 as root disk @2021-01-31
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 10
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref VPC2SecurtiyGroup1
+      Tags:
+        - Key: Name
+          Value: Virtual-Appliance-2
+      UserData: 
+        Fn::Base64: 
+          !Sub |
+            #! /bin/bash
+            yum update -y
+            pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple pip -U
+            pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+            pip3 install pyyaml -i https://pypi.tuna.tsinghua.edu.cn/simple
+            yum install git -y
+            git clone https://github.com/sentialabs/geneve-proxy.git
+            mv geneve-proxy /root/
+            mv /root/geneve-proxy/config.yaml /root/geneve-proxy/config-orig.yaml
+            wget -O /root/geneve-proxy/config.yaml http://myworkshop.bitipcman.com/GWLB/GWLB-in-single-VPC-Quickstart-config.yaml
+            echo "cd /root/geneve-proxy/" >> /etc/rc.local
+            echo "nohup /bin/python3 main.py &" >> /etc/rc.local
+            chmod +x /etc/rc.local
+            reboot
+
+  # GLWB in VPC2
+  GWLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join ['-', ['GWLB', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+      Type: gateway
+      Tags:
+        - Key: Name
+          Value: !Join ['-', ['GWLB', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+      Subnets: 
+        - !Ref VPC2ApplianceSubnet1
+        - !Ref VPC2ApplianceSubnet2
+      LoadBalancerAttributes: 
+        - Key: load_balancing.cross_zone.enabled
+          Value: true
+
+  # GLWB in VPC2
+  GWLBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join ['-', ['GWLB', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+      Port: 6081
+      Protocol: GENEVE
+      HealthCheckPort: "22"
+      HealthCheckProtocol: "TCP"
+      HealthCheckIntervalSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: 20
+      VpcId: !Ref VPC2
+      TargetType: instance
+      Targets: 
+        - Id: !Ref VPC2VM1
+        - Id: !Ref VPC2VM2
+      Tags:
+        - Key: Name
+          Value: !Join ['-', ['GWLB', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+
+  # GLWB in VPC2
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref GWLBTargetGroup
+      LoadBalancerArn: !Ref GWLB
+
+  # GLWB in VPC1
+  # -------------------------- GWLB Endpoint -----------------------
+  GWLBVpcEndpointService:
+    Type: AWS::EC2::VPCEndpointService
+    DependsOn: GWLB
+    Properties:
+      GatewayLoadBalancerArns: 
+        - !Ref GWLB
+      AcceptanceRequired: false
+
+  GwlbVpcEndpoint1:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: GWLBVpcEndpointService
+    Properties:
+      VpcId: !Ref VPC1
+      ServiceName: !Join
+          - ''
+          - - !Sub 'cn.com.amazonaws.vpce.${AWS::Region}.'
+            - !Ref GWLBVpcEndpointService
+      VpcEndpointType: GatewayLoadBalancer
+      SubnetIds:
+        - !Ref VPC1ApplianceSubnet1
+
+  GwlbVpcEndpoint2:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: GWLBVpcEndpointService
+    Properties:
+      VpcId: !Ref VPC1
+      ServiceName: !Join
+          - ''
+          - - !Sub 'cn.com.amazonaws.vpce.${AWS::Region}.'
+            - !Ref GWLBVpcEndpointService
+      VpcEndpointType: GatewayLoadBalancer
+      SubnetIds:
+        - !Ref VPC1ApplianceSubnet2
+
+Outputs:
+    # GWLB
+    VPC1EndpointService:
+      Value: !Ref GWLBVpcEndpointService
+    GwlbVpcEndpoint1:
+      Value: !Ref GwlbVpcEndpoint1
+    GwlbVpcEndpoint2:
+      Value: !Ref GwlbVpcEndpoint2
+    VirtualAppliance1PrivateIP: 
+      Value: !GetAtt VPC2VM1.PrivateIp
+    VirtualAppliance2PrivateIP: 
+      Value: !GetAtt VPC2VM2.PrivateIp

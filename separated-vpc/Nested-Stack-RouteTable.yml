@@ -1,0 +1,57 @@
+Description:  Add route for VPC
+
+Parameters:
+  # VPC CIDR
+  VPC1CIDR:
+    Type: String
+  VPC1PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.201.0/24
+  VPC1PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.202.0/24
+  # VPC 1 Route Table
+  VPC1NATSubnet1RouteTable: 
+    Type: String
+  VPC1NATSubnet2RouteTable: 
+    Type: String
+  VPC1PrivateSubnet1RouteTable: 
+    Type: String
+  VPC1PrivateSubnet2RouteTable: 
+    Type: String
+  # GWLB Endpoint
+  GwlbVpcEndpoint1:
+    Type: String
+  GwlbVpcEndpoint2:
+    Type: String
+
+Resources:
+  # Private Subnet
+  VPC1PrivateSubnet1GWLBRoute:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PrivateSubnet1RouteTable
+       DestinationCidrBlock: 0.0.0.0/0
+       VpcEndpointId: !Ref GwlbVpcEndpoint1
+  VPC1PrivateSubnet2GWLBRoute:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PrivateSubnet2RouteTable
+       DestinationCidrBlock: 0.0.0.0/0
+       VpcEndpointId: !Ref GwlbVpcEndpoint2
+
+  # NAT Subnet
+  VPC1NATSubnet1GWLBRoute:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1NATSubnet1RouteTable
+       DestinationCidrBlock: !Ref VPC1PrivateSubnet1CIDR
+       VpcEndpointId: !Ref GwlbVpcEndpoint1
+  VPC1NATSubnet2GWLBRoute:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1NATSubnet2RouteTable
+       DestinationCidrBlock: !Ref VPC1PrivateSubnet2CIDR
+       VpcEndpointId: !Ref GwlbVpcEndpoint2

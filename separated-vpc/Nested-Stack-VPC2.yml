@@ -1,0 +1,230 @@
+Description:  Build VPC/Subnet/RouteTable/EIP/NAT
+
+Parameters:
+  VPC2CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 192.168.0.0/16
+  VPC2NATSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 192.168.1.0/24
+  VPC2NATSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 192.168.2.0/24
+  VPC2ApplianceSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 192.168.101.0/24
+  VPC2ApplianceSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 192.168.102.0/24
+
+Resources:
+  # VPC and IGW
+  VPC2:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPC2CIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC
+  VPC2InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC
+  VPC2InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: VPC2InternetGateway
+    Properties:
+      InternetGatewayId: !Ref VPC2InternetGateway
+      VpcId: !Ref VPC2
+  # EIP For NAT
+  VPC2EIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-AZ1-NAT
+  VPC2EIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-AZ2-NAT
+
+  # 4 subnets
+  VPC2NATSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref VPC2NATSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-NATSubnet1
+  VPC2NATSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref VPC2NATSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-NATSubnet1
+  VPC2ApplianceSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref VPC2ApplianceSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-Appliance-1
+  VPC2ApplianceSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref VPC2ApplianceSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-Appliance-2
+
+  # NAT Gateway
+  VPC2NATGateway1:
+    DependsOn: VPC2NATSubnet1
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt VPC2EIP1.AllocationId
+      SubnetId: !Ref VPC2NATSubnet1
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-NAT1
+  VPC2NATGateway2:
+    DependsOn: VPC2NATSubnet2
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt VPC2EIP2.AllocationId
+      SubnetId: !Ref VPC2NATSubnet2
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-NAT2
+
+  # NATSubnet Routetable
+  # AZ1
+  VPC2NATSubnet1RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-NATSubnet1
+  VPC2NATSubnet1Route:
+    Type: AWS::EC2::Route
+    DependsOn: VPC2InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VPC2NATSubnet1RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref VPC2InternetGateway
+  VPC2NATSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC2NATSubnet1RouteTable
+      SubnetId: !Ref VPC2NATSubnet1
+  # AZ2
+  VPC2NATSubnet2RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-NATSubnet2
+  VPC2NATSubnet2Route:
+    Type: AWS::EC2::Route
+    DependsOn: VPC2InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VPC2NATSubnet2RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref VPC2InternetGateway
+  VPC2NATSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC2NATSubnet2RouteTable
+      SubnetId: !Ref VPC2NATSubnet2
+
+  # ApplianceSubnet Routetable
+  # AZ1 
+  VPC2ApplianceSubnet1RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-Appliance1
+  VPC2ApplianceSubnet1Route:
+    Type: AWS::EC2::Route
+    DependsOn: VPC2NATGateway1
+    Properties:
+      RouteTableId: !Ref VPC2ApplianceSubnet1RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref VPC2NATGateway1
+  VPC2ApplianceSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC2ApplianceSubnet1RouteTable
+      SubnetId: !Ref VPC2ApplianceSubnet1
+  # AZ2
+  VPC2ApplianceSubnet2RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: Appliance-VPC-Appliance2
+  VPC2ApplianceSubnet2Route:
+    Type: AWS::EC2::Route
+    DependsOn: VPC2NATGateway2
+    Properties:
+      RouteTableId: !Ref VPC2ApplianceSubnet2RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref VPC2NATGateway2
+  VPC2ApplianceSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC2ApplianceSubnet2RouteTable
+      SubnetId: !Ref VPC2ApplianceSubnet2
+
+Outputs:
+    VPC2:
+      Value: !Ref VPC2
+    # Subnet ID
+    VPC2NATSubnet1:
+      Value: !Ref VPC2NATSubnet1
+    VPC2NATSubnet2:
+      Value: !Ref VPC2NATSubnet2
+    VPC2ApplianceSubnet1:
+      Value: !Ref VPC2ApplianceSubnet1
+    VPC2ApplianceSubnet2:
+      Value: !Ref VPC2ApplianceSubnet2
+    # Route Table ID
+    VPC2NATSubnet1RouteTable:
+      Value: !Ref VPC2NATSubnet1RouteTable
+    VPC2NATSubnet2RouteTable:
+      Value: !Ref VPC2NATSubnet2RouteTable
+    VPC2ApplianceSubnet1RouteTable:
+      Value: !Ref VPC2ApplianceSubnet1RouteTable
+    VPC2ApplianceSubnet2RouteTable:
+      Value: !Ref VPC2ApplianceSubnet2RouteTable
