@@ -36,14 +36,14 @@ Resources:
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Join ['-', ['ALB', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+      Name: !Join ['-', ['alb', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
       Scheme: internet-facing
       Type: application
       SecurityGroups: 
         - !Ref VPC1SecurtiyGroup5
       Tags:
         - Key: Name
-          Value: !Join ['-', ['GWLB', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
+          Value: !Join ['-', ['GWLB-ingress ALB', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
       Subnets: 
         - !Ref VPC1NATSubnet1
         - !Ref VPC1NATSubnet2
