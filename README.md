@@ -8,7 +8,7 @@ GWLB in single VPC Quickstart CloudFormation Template
 
 关于AWS GWLB，之前构建过一个[结合Transit Gateway的多VPC的GWLB方案](https://github.com/aobao32/gateway-load-balacer-centralized-solution-quickstart)。本次构建的quickstart则是一个更简化的单VPC方案，以满足特定场景下的要求。注意是特定场景下的需求，如果是全新设计，建议按照GWLB最佳实践的架构进行组网。
 
-本方案构建一个单VPC的网络检测方案，可参考[之前多VPC的GWLB方案]。
+本方案构建一个单VPC的网络检测方案。
 
 主要组件如下：
 
