@@ -187,6 +187,6 @@ ps awuxf | grep python
 tcpdump -nvv 'port 6081'
 ```
 
-手工配置Geneve Proxy也可以参考[这个](https://d5ubqqttnawof.cloudfront.net/video/GWLB-02-QuickstartDemo.mp4)视频演示（本视频有解说注意播放音量）。
+手工配置Geneve Proxy也可以参考[这个](https://video.bitipcman.com/GWLB-02-QuickstartDemo.mp4)视频演示（本视频有解说注意播放音量）。
 
 本文完。
